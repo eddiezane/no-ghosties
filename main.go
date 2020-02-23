@@ -24,26 +24,50 @@ func main() {
 		log.Fatal("SLACK_CHANNEL must be set")
 	}
 
-	now := time.Now().UTC()
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	unix := today.Unix()
-
 	api := slack.New(token)
-	users, err := api.GetUsers()
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	deleted := make([]string, 0)
-	for _, u := range users {
-		if u.Deleted && (u.Updated.Time().Unix() > unix) {
-			s := fmt.Sprintf("%s - %s - @%s\n", u.Profile.RealName, u.Profile.Title, u.Profile.DisplayNameNormalized)
-			deleted = append(deleted, s)
+	lastTick := time.Now().Unix()
+
+	ticker := time.NewTicker(15 * time.Minute)
+
+	log.Info("starting loop")
+
+	errorCount := 0
+	for {
+		if errorCount >= 3 {
+			log.Fatal(fmt.Errorf("error threshold exceeded: %d", errorCount))
 		}
-	}
 
-	_, _, err = api.PostMessage(channel, slack.MsgOptionText(strings.Join(deleted, "\n"), false))
-	if err != nil {
-		log.Fatal(err)
+		tick := <-ticker.C
+
+		log.Info("tick")
+
+		users, err := api.GetUsers()
+		if err != nil {
+			errorCount++
+			log.Error(err)
+			continue
+		}
+
+		var deleted []string
+		for _, u := range users {
+			if u.Deleted && (u.Updated.Time().Unix() > lastTick) {
+				s := fmt.Sprintf("%s - %s - @%s\n", u.Profile.RealName, u.Profile.Title, u.Profile.DisplayNameNormalized)
+				deleted = append(deleted, s)
+			}
+		}
+
+		l := len(deleted)
+		log.Infof("%d new", l)
+		if l > 0 {
+			if _, _, err = api.PostMessage(channel, slack.MsgOptionText(strings.Join(deleted, "\n"), false)); err != nil {
+				errorCount++
+				log.Error(err)
+				continue
+			}
+		}
+
+		errorCount = 0
+		lastTick = tick.Unix()
 	}
 }
