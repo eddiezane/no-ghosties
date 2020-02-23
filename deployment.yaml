@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: no-ghosties
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: no-ghosties
+  template:
+    metadata:
+      labels:
+        app: no-ghosties
+    spec:
+      containers:
+      - name: no-ghosties
+        image: eddiezane/no-ghosties:latest
+        imagePullPolicy: Always
+        env:
+        - name: SLACK_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: no-ghosties
+              key: SLACK_TOKEN
+        - name: SLACK_CHANNEL
+          valueFrom:
+            secretKeyRef:
+              name: no-ghosties
+              key: SLACK_CHANNEL
